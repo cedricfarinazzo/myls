@@ -5,9 +5,14 @@
 
 #define PRG_NAME "ls"
 #define PRG_AUTHORS "Cédric Farinazzo<cedric.farinazzo@gmail.com>"
-#define PRG_VERSION_MAJOR 0
-#define PRG_VERSION_MINOR 1
-#define PRG_VERSION_PATCH 0
+#define PRG_VERSION_MAJOR "0"
+#define PRG_VERSION_MINOR "1"
+#define PRG_VERSION_PATCH "0"
+
+struct path {
+    size_t len;
+    char **paths;
+} path;
 
 struct options {
     int version; //(0) / --version: diplay version
@@ -19,6 +24,7 @@ struct options {
     int perm;  // (0) / -p(1): display permission
     int time;  // (0) / -t(1): display time
     int rec;   // (0) / -R(1): recursive
+    struct path *p;
 } options;
 
 
@@ -33,31 +39,30 @@ int get_arg(struct options *op, int argc, char *argv[])
     op->perm = 0;
     op->time = 0;
     op->rec = 0;
-    
+    op->p = malloc(sizeof(struct path));
+    op->p->len = 0;
+    op->p->paths = malloc(sizeof(char*) * op->p->len);
+
     for(int i = 1; i < argc; i++)
     {
         char *arg = argv[i];
-        
+
         if (strcmp("--nocolor", arg) == 0)
         {
-            op->color = 0;
-            continue;
+            op->color = 0; continue;
         }
         if (strcmp("--help", arg) == 0)
         {
-            op->help = 1;
-            break;
+            op->help = 1; break;
         }
         if (strcmp("--version", arg) == 0)
         {
-            op->version = 1;
-            break;
+            op->version = 1; break;
         }
-
         for (size_t i = 0; arg[i] != 0; ++i)
         {
             switch (arg[i]) {
-                
+
                 case 'a':
                     op->all = 1;
                     break;
@@ -81,7 +86,7 @@ int get_arg(struct options *op, int argc, char *argv[])
                 case 't':
                     op->time = 1;
                     break;
-                
+
                 case 'R':
                     op->rec = 1;
                     break;
@@ -90,17 +95,63 @@ int get_arg(struct options *op, int argc, char *argv[])
                     break;
             }
         }
+        
     }
-
     return 0;
 }
 
+int version()
+{
+    printf("%s by %s  Version: %s.%s.%s\n", PRG_NAME, PRG_AUTHORS, PRG_VERSION_MAJOR, PRG_VERSION_MINOR, PRG_VERSION_PATCH);
+    return EXIT_SUCCESS;
+}
+
+int help()
+{
+    printf("  Usage:  %s <options> <path> \n\n", PRG_NAME);
+    
+    printf(" path: path to file or directory\n\n");
+
+    printf("   OPTION:\n\n"
+    " --version: diplay version\n"
+    " --help: display help\n"
+    " -a: display all\n"
+    " -A: display all without . and ..\n"
+    " -l: display in list\n"
+    " --nocolor: disable color\n"
+    " -s: display size\n"
+    " -p: display permission\n"
+    " -t: display time\n"
+    " -R: recursive\n\n"
+    );
+    return version();
+}
+
+void clear_op(struct options *op)
+{
+    struct path *p = op->p;
+    for (size_t i = 0; i < p->len; ++i)
+        free(p->paths[i]);
+    free(p);
+}
 
 int main(int argc, char *argv[])
 {   
     struct options op;
     if (get_arg(&op, argc, argv) != 0)
         errx(1, "Couldn't read command line arguments");
-    
-    return EXIT_SUCCESS;
+
+    if (op.version)
+    {
+        clear_op(&op);
+        return version();
+    }
+
+    if (op.help)
+    {
+        clear_op(&op);
+        return help();
+    }
+
+    return EXIT_FAILURE;
 }
