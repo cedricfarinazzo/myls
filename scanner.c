@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -9,6 +10,13 @@
 
 #include "scanner.h"
 
+
+int is_regular_file(const char *path)
+{
+    struct stat path_stat;
+    stat(path, &path_stat);
+    return S_ISREG(path_stat.st_mode);
+}
 
 struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
 {
@@ -30,12 +38,15 @@ struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
     struct stat fs;
     int e = stat(node->name, &fs);
     if (e == -1)
-        errx(EXIT_FAILURE, "FILESYSTEM: stat failure");
+        err(e, "cannot access to %s", node->name);
     memcpy(node->stat_file, &fs, sizeof(struct stat));
 
     //initialyze childreen table
     node->nbchildreen = 0;
-    node->capacity = 2;
+    if (!S_ISREG(fs.st_mode))
+        node->capacity = 2;
+    else
+        node->capacity = 0;
     node->child = malloc(node->capacity * sizeof(struct entity*));
     return node;
 }
@@ -75,13 +86,19 @@ struct entity *build_tree(char *entrypath)
     struct stat fs;
     int e = stat(tree->name, &fs);
     if (e == -1)
-        errx(EXIT_FAILURE, "stat failure");
+        err(e, "cannot access to %s", tree->name);
     memcpy(tree->stat_file, &fs, sizeof(struct stat));
 
     //initialize childreen table
     tree->nbchildreen = 0;
-    tree->capacity = 2;
+    if (!S_ISREG(fs.st_mode))
+        tree->capacity = 2;
+    else
+        tree->capacity = 0;
     tree->child = malloc(tree->capacity * sizeof(struct entity*));
+    
+    if (S_ISREG(fs.st_mode))
+        return tree;
 
     //open direntory
     DIR *dir;
@@ -98,7 +115,10 @@ struct entity *build_tree(char *entrypath)
         if (entry->d_type == DT_DIR) { // entry is a directory
             char path[1024];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            {
+                addnode(tree,  dirent_to_node(entry, entrypath));
                 continue;
+            }
             //get relative path
             snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
             // add sub tree as a new childreen
