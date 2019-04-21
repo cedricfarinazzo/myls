@@ -27,7 +27,7 @@ void double_capacity(struct entity *tree);
 void addnode(struct entity *tree, struct entity *node);
 struct entity *build_tree(char *);
 void free_tree(struct entity *tree);
-void print_tree(struct entity *tree, size_t indent);
+void print_debug_tree(struct entity *tree, size_t indent);
 
 
 #endif /* _SCANNER_H_ */

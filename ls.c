@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     }
 
     for (size_t i = 0; i < nbtree; ++i)
-        print_tree(forest[i], 0);
+        print_debug_tree(forest[i], 0);
     
     for (size_t i = 0; i < nbtree; ++i)
         free_tree(forest[i]);

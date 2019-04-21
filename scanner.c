@@ -26,6 +26,12 @@ struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
     //concatenate path
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
+    if (access(path, R_OK) != 0)
+    {
+        free(node);
+        warnx("cannot access to %s: permission denied", path);
+        return NULL;
+    }
 
     //write path to node
     size_t lenname = strlen(path);
@@ -116,7 +122,9 @@ struct entity *build_tree(char *entrypath)
             char path[1024];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             {
-                addnode(tree,  dirent_to_node(entry, entrypath));
+                struct entity *new_node = dirent_to_node(entry, entrypath);
+                if (new_node != NULL)
+                    addnode(tree,  new_node);
                 continue;
             }
             //get relative path
@@ -125,7 +133,9 @@ struct entity *build_tree(char *entrypath)
             addnode(tree, build_tree(path));
         } else { // entry is not a directory
             // add file to tree as a new childreen
-            addnode(tree,  dirent_to_node(entry, entrypath));
+            struct entity *new_node = dirent_to_node(entry, entrypath);
+            if (new_node != NULL)
+                addnode(tree,  new_node);
         }
     }
     closedir(dir);
@@ -135,6 +145,8 @@ struct entity *build_tree(char *entrypath)
 
 void free_tree(struct entity *tree)
 {
+    if (tree == NULL)
+        return;
     for (size_t i = 0; i < tree->nbchildreen; ++i)
     {
         free_tree(tree->child[i]);
@@ -146,8 +158,10 @@ void free_tree(struct entity *tree)
 }
 
 
-void print_tree(struct entity *tree, size_t indent)
+void print_debug_tree(struct entity *tree, size_t indent)
 {
+    if (tree == NULL)
+        return;
     char indents[indent + 1];
     for (size_t i = 0; i < indent; ++i)
         indents[i] = ' ';
@@ -157,6 +171,6 @@ void print_tree(struct entity *tree, size_t indent)
            tree->stat_file->st_mode, tree->stat_file->st_size);
     for (size_t i = 0; i < tree->nbchildreen; ++i)
     {
-        print_tree(tree->child[i], indent + 4);
+        print_debug_tree(tree->child[i], indent + 4);
     }
 }
