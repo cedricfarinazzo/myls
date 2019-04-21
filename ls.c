@@ -1,3 +1,8 @@
+#define _GNU_SOURCE
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,6 +31,15 @@ struct options {
     int rec;   // (0) / -R(1): recursive
     struct path *p;
 } options;
+
+struct entity {
+    unsigned char type;
+    char *name;
+    struct stat *stat_file;
+    size_t capacity;
+    size_t nbchildreen;
+    struct entity **child;
+} entity;
 
 
 int get_arg(struct options *op, int argc, char *argv[])
@@ -95,7 +109,14 @@ int get_arg(struct options *op, int argc, char *argv[])
                     break;
             }
         }
-        
+        if (arg[0] != '-' && arg[0] != 0)
+        {
+            ++(op->p->len); 
+            op->p->paths = realloc(op->p->paths, sizeof(char*) * op->p->len);
+            size_t alen = strlen(arg);
+            (op->p->paths)[op->p->len - 1] = malloc(sizeof(char) * (alen + 1));
+            strncpy((op->p->paths)[op->p->len - 1], arg, alen + 1);
+        }
     }
     return 0;
 }
@@ -132,8 +153,138 @@ void clear_op(struct options *op)
     struct path *p = op->p;
     for (size_t i = 0; i < p->len; ++i)
         free(p->paths[i]);
+    free(p->paths);
     free(p);
 }
+
+
+struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
+{
+    struct entity *node = malloc(sizeof(struct entity));
+    node->type = entry->d_type;
+
+    //concatenate path
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
+
+    //write path to node
+    size_t lenname = strlen(path);
+    node->name = malloc(sizeof(char) * (lenname+1));
+    memcpy(node->name, path, sizeof(char) * lenname);
+    node->name[lenname] = 0;
+
+    //write stat structure to node
+    node->stat_file = malloc(sizeof(struct stat));
+    struct stat fs;
+    int e = stat(node->name, &fs);
+    if (e == -1)
+        errx(EXIT_FAILURE, "FILESYSTEM: stat failure");
+    memcpy(node->stat_file, &fs, sizeof(struct stat));
+
+    //initialyze childreen table
+    node->nbchildreen = 0;
+    node->capacity = 2;
+    node->child = malloc(node->capacity * sizeof(struct entity*));
+    return node;
+}
+
+void double_capacity(struct entity *tree)
+{
+    if (tree->capacity == tree->nbchildreen)
+    {
+        tree->capacity *= 2;
+        tree->child = realloc(tree->child, sizeof(struct entity*) * tree->capacity);
+    }
+}
+
+void addnode(struct entity *tree, struct entity *node)
+{
+    double_capacity(tree);
+    tree->child[tree->nbchildreen] = node;
+    tree->nbchildreen++;
+}
+
+
+struct entity *build_tree(char *entrypath)
+{
+    //create tree
+    struct entity *tree = malloc(sizeof(struct entity));
+    
+    //write path to tree
+    size_t lenname = strlen(entrypath);
+    tree->name = malloc(sizeof(char) * (lenname+1));
+    memcpy(tree->name, entrypath, sizeof(char) * lenname);
+    tree->name[lenname] = 0;
+
+    //write stat structure to tree
+    tree->stat_file = malloc(sizeof(struct stat));
+    struct stat fs;
+    int e = stat(tree->name, &fs);
+    if (e == -1)
+        errx(EXIT_FAILURE, "stat failure");
+    memcpy(tree->stat_file, &fs, sizeof(struct stat));
+
+    //initialize childreen table
+    tree->nbchildreen = 0;
+    tree->capacity = 2;
+    tree->child = malloc(tree->capacity * sizeof(struct entity*));
+
+    //open direntory
+    DIR *dir;
+    struct dirent *entry;
+
+    if (!(dir = opendir(entrypath)))
+    {
+        free(tree->child); free(tree->stat_file); free(tree);
+        return NULL;
+    }
+
+    //read directory content
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_DIR) { // entry is a directory
+            char path[1024];
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+            //get relative path
+            snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
+            // add sub tree as a new childreen
+            addnode(tree, build_tree(path));
+        } else { // entry is not a directory
+            // add file to tree as a new childreen
+            addnode(tree,  dirent_to_node(entry, entrypath));
+        }
+    }
+    closedir(dir);
+    return tree;
+}
+
+void free_tree(struct entity *tree)
+{
+    for (size_t i = 0; i < tree->nbchildreen; ++i)
+    {
+        free_tree(tree->child[i]);
+    }
+    free(tree->child);
+    free(tree->name);
+    free(tree->stat_file);
+    free(tree);
+}
+
+void print_tree(struct entity *tree, size_t indent)
+{
+    char indents[indent + 1];
+    for (size_t i = 0; i < indent; ++i)
+        indents[i] = ' ';
+    indents[indent] = 0;
+    printf("%s node(%p): %s | %d | nbchild(%ld / %ld) | mode(%d) | size %ld o\n", indents, 
+           (void*)tree, tree->name, tree->type, tree->nbchildreen, tree->capacity, 
+           tree->stat_file->st_mode, tree->stat_file->st_size);
+    for (size_t i = 0; i < tree->nbchildreen; ++i)
+    {
+        print_tree(tree->child[i], indent + 4);
+    }
+}
+
 
 int main(int argc, char *argv[])
 {   
@@ -152,6 +303,23 @@ int main(int argc, char *argv[])
         clear_op(&op);
         return help();
     }
+    
+    size_t nbtree = op.p->len == 0 ? 1 : op.p->len;
+    struct entity *forest[nbtree];
+    
+    if (op.p->len == 0) {
+        forest[0] = build_tree(".");
+    } else {
+        for (size_t i = 0; i < nbtree; ++i)
+            forest[i] = build_tree(op.p->paths[i]);
+    }
 
-    return EXIT_FAILURE;
+    for (size_t i = 0; i < nbtree; ++i)
+        print_tree(forest[i], 0);
+    
+    for (size_t i = 0; i < nbtree; ++i)
+        free_tree(forest[i]);
+    
+    clear_op(&op);
+    return EXIT_SUCCESS;
 }
