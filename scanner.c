@@ -24,7 +24,7 @@ struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
     node->type = entry->d_type;
 
     //concatenate path
-    char path[1024];
+    char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
     if (access(path, R_OK) != 0)
     {
@@ -112,14 +112,15 @@ struct entity *build_tree(char *entrypath)
 
     if (!(dir = opendir(entrypath)))
     {
-        free(tree->child); free(tree->stat_file); free(tree);
+        warnx("cannot access to %s: permission denied", entrypath);
+        free(tree->name); free(tree->child); free(tree->stat_file); free(tree);
         return NULL;
     }
 
     //read directory content
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_DIR) { // entry is a directory
-            char path[1024];
+            char path[PATH_MAX];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             {
                 struct entity *new_node = dirent_to_node(entry, entrypath);
@@ -129,8 +130,11 @@ struct entity *build_tree(char *entrypath)
             }
             //get relative path
             snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
+
             // add sub tree as a new childreen
-            addnode(tree, build_tree(path));
+            struct entity *subtree = build_tree(path);
+            if (subtree != NULL)
+                addnode(tree, subtree);
         } else { // entry is not a directory
             // add file to tree as a new childreen
             struct entity *new_node = dirent_to_node(entry, entrypath);
@@ -166,11 +170,19 @@ void print_debug_tree(struct entity *tree, size_t indent)
     for (size_t i = 0; i < indent; ++i)
         indents[i] = ' ';
     indents[indent] = 0;
-    printf("%s node(%p): %s | %d | nbchild(%ld / %ld) | mode(%d) | size %ld o\n", indents, 
-           (void*)tree, tree->name, tree->type, tree->nbchildreen, tree->capacity, 
-           tree->stat_file->st_mode, tree->stat_file->st_size);
-    for (size_t i = 0; i < tree->nbchildreen; ++i)
+    if (tree->capacity == 0)
     {
-        print_debug_tree(tree->child[i], indent + 4);
+        printf("%s FILE: %s | %d | mode(%d) | size %ld o\n", indents, 
+        tree->name, tree->type, tree->stat_file->st_mode, tree->stat_file->st_size);
+    }
+    else
+    {
+        printf("%s DIR: %s | %d | nbchild(%ld / %ld) | mode(%d) | size %ld o\n", indents, 
+           tree->name, tree->type, tree->nbchildreen, tree->capacity, 
+           tree->stat_file->st_mode, tree->stat_file->st_size);
+        for (size_t i = 0; i < tree->nbchildreen; ++i)
+        {
+            print_debug_tree(tree->child[i], indent + 4);
+        }
     }
 }
