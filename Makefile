@@ -6,7 +6,7 @@ CFLAGS = -Wall -Wextra -Wformat=2 -pedantic -std=c99 -O0 -g3
 LDFLAGS =
 LDLIBS = -lm
 
-SRC = ls.c
+SRC = ls.c arg.c scanner.c
 OBJ = ${SRC:.c=.o}
 DEP = ${SRC:.c=.d}
 
