@@ -7,16 +7,9 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <err.h>
+#include "arg.h"
 
 #include "scanner.h"
-
-
-int is_regular_file(const char *path)
-{
-    struct stat path_stat;
-    stat(path, &path_stat);
-    return S_ISREG(path_stat.st_mode);
-}
 
 struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
 {
@@ -80,7 +73,7 @@ struct entity *build_tree(char *entrypath)
 {
     //create tree
     struct entity *tree = malloc(sizeof(struct entity));
-    
+
     //write path to tree
     size_t lenname = strlen(entrypath);
     tree->name = malloc(sizeof(char) * (lenname+1));
@@ -102,7 +95,7 @@ struct entity *build_tree(char *entrypath)
     else
         tree->capacity = 0;
     tree->child = malloc(tree->capacity * sizeof(struct entity*));
-    
+
     if (S_ISREG(fs.st_mode))
         return tree;
 
@@ -173,16 +166,74 @@ void print_debug_tree(struct entity *tree, size_t indent)
     if (tree->capacity == 0)
     {
         printf("%s FILE: %s | %d | mode(%d) | size %ld o\n", indents, 
-        tree->name, tree->type, tree->stat_file->st_mode, tree->stat_file->st_size);
+               tree->name, tree->type, tree->stat_file->st_mode, tree->stat_file->st_size);
     }
     else
     {
         printf("%s DIR: %s | %d | nbchild(%ld / %ld) | mode(%d) | size %ld o\n", indents, 
-           tree->name, tree->type, tree->nbchildreen, tree->capacity, 
-           tree->stat_file->st_mode, tree->stat_file->st_size);
+               tree->name, tree->type, tree->nbchildreen, tree->capacity, 
+               tree->stat_file->st_mode, tree->stat_file->st_size);
         for (size_t i = 0; i < tree->nbchildreen; ++i)
         {
             print_debug_tree(tree->child[i], indent + 4);
         }
     }
 }
+
+void print_node(struct entity *node, struct options *op, size_t indent)
+{
+    char *name = node->name + 2;
+    if (name[0] != 0 && name[0] == '.')
+    {
+        if (op->all == 0)
+            return;
+        if (op->all == 2)
+        {
+            if (strcmp(".", name) == 0
+                || strcmp("..", name) == 0)
+                return;
+        }
+    }
+
+
+    char *color = ""; char *reset = ""; 
+
+    if (op->color)
+    {
+        mode_t m = node->stat_file->st_mode;
+        if (S_ISREG(m)) //file
+            color = RESET;
+        else if (S_ISDIR(m)) //directoty
+            color = GRN;
+        else if (S_ISCHR(m)) // character special file (a device like a terminal). 
+            color = RED;
+        else if (S_ISBLK(m)) // block special file (a device like a disk)
+            color = YEL;
+        else if (S_ISFIFO(m)) // FIFO special file, or a pipe
+            color = MAG;
+        else if (S_ISLNK(m)) // symbolic link
+            color = BLU;
+        else if (S_ISSOCK(m)) // socket
+            color = MAG;
+        else
+            color = RESET;
+        reset = RESET;
+    }
+    printf("%s%s%s " ,color, name, reset);
+    if (op->list)
+        printf(" \n");
+}
+
+
+void __print_tree(struct entity *tree, struct options *op, size_t indent)
+{
+    for(size_t i = 0; i < tree->nbchildreen; ++i)
+        print_node(tree->child[i], op, indent);
+
+}
+
+void print_tree(struct entity *tree, struct options *op)
+{
+    __print_tree(tree, op, 0);
+}
+

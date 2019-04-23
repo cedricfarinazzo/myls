@@ -65,9 +65,13 @@ int main(int argc, char *argv[])
             forest[i] = build_tree(op.p->paths[i]);
     }
 
+//    for (size_t i = 0; i < nbtree; ++i)
+//        print_debug_tree(forest[i], 0);
+   
     for (size_t i = 0; i < nbtree; ++i)
-        print_debug_tree(forest[i], 0);
+        print_tree(forest[i], &op);
     
+
     for (size_t i = 0; i < nbtree; ++i)
         free_tree(forest[i]);
     
