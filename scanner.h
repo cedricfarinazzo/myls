@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <err.h>
+#include <time.h>
 #include "arg.h"
 
 #define RED   "\x1B[31m"

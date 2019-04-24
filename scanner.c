@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <time.h>
 #include <err.h>
 #include "arg.h"
 
@@ -242,11 +243,22 @@ void print_node(struct entity *node, struct options *op, size_t indent)
     if (op->size)
         asprintf(&sizes, " %do ", (int)node->stat_file->st_size);
 
-    printf("%s%s%s%s%s ", indentc, sizes, color, name, reset);
+    char *tim;
+    char tims[1]; tims[0] = 0; tim = tims;
+    if (op->time)
+    {
+        char s[1000];
+        struct tm * p = localtime(&(node->stat_file)->st_mtime);
+        strftime(s, 1000, "%A, %B %d %Y", p);
+        asprintf(&tim, " %s ", s);
+    }
+    printf("%s%s%s%s%s%s ", indentc, sizes, tim, color, name, reset);
     if (op->list)
         printf(" \n");
     if (op->size)
         free(sizes);
+    if (op->time)
+        free(tim);
 }
 
 
