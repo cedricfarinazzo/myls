@@ -20,7 +20,7 @@ int get_arg(struct options *op, int argc, char *argv[])
         { op->help = 1; break; }
         if (strcmp("--version", argv[i]) == 0)
         { op->version = 1; break; }
-        for (size_t j = 0; argv[j] != 0; ++j)
+        for (size_t j = 0; argv[i][j] != 0 && argv[i][0] == '-'; ++j)
         {
             switch (argv[i][j]) {
                 case 'a':

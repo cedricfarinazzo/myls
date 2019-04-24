@@ -180,24 +180,34 @@ void print_debug_tree(struct entity *tree, size_t indent)
     }
 }
 
+char *getBasename(char *filename)
+{
+    char *base = filename;
+    while (*filename != 0)
+    {
+        if (*filename == '/')
+        { base = filename; ++base; }
+        ++filename;
+    }
+
+    return base;
+}
+
 void print_node(struct entity *node, struct options *op, size_t indent)
 {
-    char *name = node->name + 2;
+    char *name = getBasename(node->name);
     if (name[0] != 0 && name[0] == '.')
     {
         if (op->all == 0)
             return;
         if (op->all == 2)
         {
-            if (strcmp(".", name) == 0
-                || strcmp("..", name) == 0)
+            if (name[0] == '.')
                 return;
         }
     }
 
-
     char *color = ""; char *reset = ""; 
-
     if (op->color)
     {
         mode_t m = node->stat_file->st_mode;
@@ -219,7 +229,11 @@ void print_node(struct entity *node, struct options *op, size_t indent)
             color = RESET;
         reset = RESET;
     }
-    printf("%s%s%s " ,color, name, reset);
+    
+    indent = indent - 4 > 0 ? indent - 4 : 0;
+    char indentc[indent + 1]; indentc[indent] = 0;
+    for(size_t i = 0; i < indent; ++i) indentc[i] = '-';
+    printf("%s%s%s%s ", indentc, color, name, reset);
     if (op->list)
         printf(" \n");
 }
@@ -227,9 +241,15 @@ void print_node(struct entity *node, struct options *op, size_t indent)
 
 void __print_tree(struct entity *tree, struct options *op, size_t indent)
 {
+    if (strcmp(".", tree->name) != 0)
+        print_node(tree, op, indent);
     for(size_t i = 0; i < tree->nbchildreen; ++i)
-        print_node(tree->child[i], op, indent);
-
+    {
+        if (op->rec)
+            __print_tree(tree->child[i], op, indent + 4);
+        if (strcmp(".", tree->name) == 0 && !op->rec)
+            __print_tree(tree->child[i], op, 0);
+    }
 }
 
 void print_tree(struct entity *tree, struct options *op)
