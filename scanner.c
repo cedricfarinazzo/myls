@@ -286,8 +286,8 @@ void __print_tree(struct entity *tree, struct options *op, size_t indent)
     {
         if (op->rec)
             __print_tree(tree->child[i], op, indent + 4);
-        if (strcmp(".", tree->name) == 0 && !op->rec)
-            __print_tree(tree->child[i], op, 0);
+        else
+            print_node(tree->child[i], op, 0);
     }
 }
 
