@@ -230,12 +230,23 @@ void print_node(struct entity *node, struct options *op, size_t indent)
         reset = RESET;
     }
     
-    indent = indent - 4 > 0 ? indent - 4 : 0;
+    indent = indent >= 4 ? indent - 4 : 0;
+    if (!op->list)
+        indent = 0;
     char indentc[indent + 1]; indentc[indent] = 0;
     for(size_t i = 0; i < indent; ++i) indentc[i] = '-';
-    printf("%s%s%s%s ", indentc, color, name, reset);
+
+    char *sizes;
+    char sizess[8]; for(size_t i = 0; i < 8; ++i) sizess[i] = 0;
+    sizes = sizess;
+    if (op->size)
+        asprintf(&sizes, " %do ", (int)node->stat_file->st_size);
+
+    printf("%s%s%s%s%s ", indentc, sizes, color, name, reset);
     if (op->list)
         printf(" \n");
+    if (op->size)
+        free(sizes);
 }
 
 
