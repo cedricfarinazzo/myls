@@ -20,12 +20,6 @@ struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
     //concatenate path
     char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", entrypath, entry->d_name);
-    if (access(path, R_OK) != 0)
-    {
-        free(node);
-        warnx("cannot access to %s: permission denied", path);
-        return NULL;
-    }
 
     //write path to node
     size_t lenname = strlen(path);
@@ -34,11 +28,16 @@ struct entity *dirent_to_node(struct dirent *entry, char *entrypath)
     node->name[lenname] = 0;
 
     //write stat structure to node
-    node->stat_file = malloc(sizeof(struct stat));
     struct stat fs;
-    int e = stat(node->name, &fs);
+    int e = lstat(node->name, &fs);
     if (e == -1)
-        err(e, "cannot access to %s", node->name);
+    {
+        free(node->name);
+        free(node);
+        warnx("cannot access to %s: permission denied", path);
+        return NULL;
+    }
+    node->stat_file = malloc(sizeof(struct stat));
     memcpy(node->stat_file, &fs, sizeof(struct stat));
 
     //initialyze childreen table
@@ -84,7 +83,7 @@ struct entity *build_tree(char *entrypath)
     //write stat structure to tree
     tree->stat_file = malloc(sizeof(struct stat));
     struct stat fs;
-    int e = stat(tree->name, &fs);
+    int e = lstat(tree->name, &fs);
     if (e == -1)
         err(e, "cannot access to %s", tree->name);
     memcpy(tree->stat_file, &fs, sizeof(struct stat));
@@ -113,7 +112,7 @@ struct entity *build_tree(char *entrypath)
 
     //read directory content
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_DIR) { // entry is a directory
+        if (entry->d_type == DT_DIR && entry->d_type != DT_LNK) { // entry is a directory
             char path[PATH_MAX];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             {
@@ -190,8 +189,30 @@ char *getBasename(char *filename)
         { base = filename; ++base; }
         ++filename;
     }
-
     return base;
+}
+
+char f_type(mode_t mode)
+{
+    switch (mode & S_IFMT)
+    {
+        case S_IFBLK:
+            return'b'; break;
+        case S_IFCHR:
+            return 'c'; break;
+        case S_IFDIR:
+            return 'd'; break;
+        case S_IFIFO:
+            return 'p'; break;
+        case S_IFLNK:
+            return 'l'; break;
+        case S_IFREG:
+            return '-'; break;
+        case S_IFSOCK:
+            return 's'; break;
+        default:
+            return '?'; break;
+    }
 }
 
 void print_node(struct entity *node, struct options *op, size_t indent)
@@ -231,7 +252,7 @@ void print_node(struct entity *node, struct options *op, size_t indent)
         reset = RESET;
     }
 
-    indent = indent >= 4 ? indent - 4 : 0;
+    indent = indent >= 6 ? indent - 6 : 0;
     if (!op->list)
         indent = 0;
     char indentc[indent + 1]; indentc[indent] = 0;
@@ -256,7 +277,7 @@ void print_node(struct entity *node, struct options *op, size_t indent)
     if (op->perm)
     {
         perms[0] = ' ';
-        perms[1] = (S_ISDIR(m)) ? 'd' : '-';
+        perms[1] = f_type(m);
         perms[2] = (m & S_IRUSR) ? 'r' : '-';
         perms[3] = (m & S_IWUSR) ? 'w' : '-';
         perms[4] = (m & S_IXUSR) ? 'x' : '-';
@@ -285,7 +306,7 @@ void __print_tree(struct entity *tree, struct options *op, size_t indent)
     for(size_t i = 0; i < tree->nbchildreen; ++i)
     {
         if (op->rec)
-            __print_tree(tree->child[i], op, indent + 4);
+            __print_tree(tree->child[i], op, indent + 6);
         else
             print_node(tree->child[i], op, 0);
     }
