@@ -209,9 +209,9 @@ void print_node(struct entity *node, struct options *op, size_t indent)
     }
 
     char *color = ""; char *reset = ""; 
+    mode_t m = node->stat_file->st_mode;
     if (op->color)
     {
-        mode_t m = node->stat_file->st_mode;
         if (S_ISREG(m)) //file
             color = RESET;
         else if (S_ISDIR(m)) //directoty
@@ -230,18 +230,17 @@ void print_node(struct entity *node, struct options *op, size_t indent)
             color = RESET;
         reset = RESET;
     }
-    
+
     indent = indent >= 4 ? indent - 4 : 0;
     if (!op->list)
         indent = 0;
     char indentc[indent + 1]; indentc[indent] = 0;
-    for(size_t i = 0; i < indent; ++i) indentc[i] = '-';
-
+    for(size_t i = 0; i < indent; ++i) indentc[i] = ' ';
     char *sizes;
     char sizess[8]; for(size_t i = 0; i < 8; ++i) sizess[i] = 0;
     sizes = sizess;
     if (op->size)
-        asprintf(&sizes, " %do ", (int)node->stat_file->st_size);
+        asprintf(&sizes, "  %do  ", (int)node->stat_file->st_size);
 
     char *tim;
     char tims[1]; tims[0] = 0; tim = tims;
@@ -250,9 +249,26 @@ void print_node(struct entity *node, struct options *op, size_t indent)
         char s[1000];
         struct tm * p = localtime(&(node->stat_file)->st_mtime);
         strftime(s, 1000, "%A, %B %d %Y", p);
-        asprintf(&tim, " %s ", s);
+        asprintf(&tim, "  %s   ", s);
     }
-    printf("%s%s%s%s%s%s ", indentc, sizes, tim, color, name, reset);
+
+    char perms[12 + 1]; perms[0] = perms[12] = 0;
+    if (op->perm)
+    {
+        perms[0] = ' ';
+        perms[1] = (S_ISDIR(m)) ? 'd' : '-';
+        perms[2] = (m & S_IRUSR) ? 'r' : '-';
+        perms[3] = (m & S_IWUSR) ? 'w' : '-';
+        perms[4] = (m & S_IXUSR) ? 'x' : '-';
+        perms[5] = (m & S_IRGRP) ? 'r' : '-';
+        perms[6] = (m & S_IWGRP) ? 'w' : '-';
+        perms[7] = (m & S_IXGRP) ? 'x' : '-';
+        perms[8] = (m & S_IROTH) ? 'r' : '-';
+        perms[9] = (m & S_IWOTH) ? 'w' : '-';
+        perms[10] = (m & S_IXOTH) ? 'x' : '-';
+        perms[11] = ' ';
+    }
+    printf("%s%s%s%s%s%s%s ", indentc, perms, sizes, tim, color, name, reset);
     if (op->list)
         printf(" \n");
     if (op->size)
